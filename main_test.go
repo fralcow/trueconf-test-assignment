@@ -1,14 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -91,10 +96,38 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 	handler(w, req)
 
 	resp := w.Result()
-	body, _ := io.ReadAll(resp.Body)
-
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 	log.Debug("GET / response:")
 	log.Debug(resp.StatusCode)
 	log.Debug(resp.Header.Get("Content-Type"))
 	log.Debug(string(body))
+
+	gotUsers, wantUserStore := UserList{}, UserStore{}
+	err = json.Unmarshal(body, &gotUsers)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	f, err := ioutil.ReadFile("_users.json")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	err = json.Unmarshal(f, &wantUserStore)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	assert.True(suite.T(),
+		cmp.Equal(wantUserStore.List, gotUsers),
+		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore.List, gotUsers)),
+	)
+
 }
