@@ -10,10 +10,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -66,104 +68,197 @@ func (suite *EndpointsTestSuite) SetupTest() {
 	}
 	defer f.Close()
 
-	dat, err := os.ReadFile("_users.json")
+	list := make(map[string]User)
+	userStore := UserStore{List: list}
+	data, err := json.Marshal(userStore)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	_, err = f.Write(dat)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = f.Sync()
+	log.Debugf("user store data: %v", string(data))
+	_, err = f.Write(data)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func (suite *EndpointsTestSuite) TearDownTest() {
-	e := os.Remove("users.json")
-	if e != nil {
-		log.Fatal(e)
+	err := os.Remove("users.json")
+	if err != nil {
+		log.Fatal(err)
 	}
+}
+
+func getUserStore() (us UserStore, err error) {
+
+	f, err := ioutil.ReadFile("users.json")
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal(f, &us)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	return
+}
+
+func overwriteUserStore(us UserStore) (err error) {
+	f, err := os.OpenFile("users.json", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	dat, err := json.Marshal(us)
+	if err != nil {
+		return
+	}
+	_, err = f.Write(dat)
+	return
 }
 
 func (suite *EndpointsTestSuite) TestSearchUsers() {
-	handler := searchUsers
-
-	req := httptest.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Error(err)
-		return
+	timeNow := time.Now()
+	tests := []struct {
+		name         string
+		userStore    UserStore
+		wantUserList UserList
+		wantErr      error
+	}{
+		{
+			name:         "empty user store",
+			userStore:    UserStore{List: UserList{}},
+			wantUserList: UserList{},
+			wantErr:      nil,
+		},
+		{
+			name: "one entry",
+			userStore: UserStore{
+				List: UserList{
+					"1": User{
+						CreatedAt:   timeNow,
+						DisplayName: "Alice",
+						Email:       "alice@email.com",
+					},
+				},
+			},
+			wantUserList: UserList{
+				"1": User{
+					CreatedAt:   timeNow,
+					DisplayName: "Alice",
+					Email:       "alice@email.com",
+				}},
+			wantErr: nil,
+		},
+		{
+			name: "two entries",
+		},
 	}
-	log.Debug("GET / response:")
-	log.Debug(resp.StatusCode)
-	log.Debug(resp.Header.Get("Content-Type"))
-	log.Debug(string(body))
 
-	gotUsers, wantUserStore := UserList{}, UserStore{}
-	err = json.Unmarshal(body, &gotUsers)
-	if err != nil {
-		log.Error(err)
-		return
+	for _, test := range tests {
+		suite.T().Run(test.name, func(t *testing.T) {
+			//overwrite database file
+			err := overwriteUserStore(test.userStore)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			handler := searchUsers
+
+			req := httptest.NewRequest("GET", "/", nil)
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			resp := w.Result()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			log.Debug("GET / response:")
+			log.Debug(resp.StatusCode)
+			log.Debug(resp.Header.Get("Content-Type"))
+			log.Debug(string(body))
+
+			gotUserList := UserList{}
+			err = json.Unmarshal(body, &gotUserList)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			//we want response to match a list of users in the db
+			assert.True(t,
+				cmp.Equal(test.wantUserList, gotUserList),
+				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUserList, gotUserList)),
+			)
+
+		})
 	}
-
-	f, err := ioutil.ReadFile("_users.json")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	err = json.Unmarshal(f, &wantUserStore)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	assert.True(suite.T(),
-		cmp.Equal(wantUserStore.List, gotUsers),
-		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore.List, gotUsers)),
-	)
-
 }
 
 func (suite *EndpointsTestSuite) TestCreateUser() {
-	handler := createUser
-
-	bodyReader := strings.NewReader(`{"display_name": "Anne", "email": "anne@email.com"}`)
-	req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
-	req.Header.Add("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	log.Debug("POST /api/v1/users/ response:")
-	log.Debug(resp.StatusCode)
-	log.Debug(resp.Header.Get("Content-Type"))
-	log.Debug(string(body))
-
-	gotUsersStore := UserStore{}
-	f, err := ioutil.ReadFile("users.json")
-	if err != nil {
-		log.Error(err)
-		return
+	tests := []struct {
+		name           string
+		wantUserStore  UserStore
+		wantStatusCode int
+		requestBody    string
+	}{
+		{
+			name: "Create a user",
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": {
+						CreatedAt:   time.Time{},
+						DisplayName: "Anne",
+						Email:       "anne@email.com",
+					},
+				},
+			},
+			wantStatusCode: 201,
+			requestBody:    `{"display_name": "Anne", "email": "anne@email.com"}`,
+		},
 	}
 
-	err = json.Unmarshal(f, &gotUsersStore)
-	if err != nil {
-		log.Error(err)
-		return
+	for _, test := range tests {
+		suite.T().Run(test.name, func(t *testing.T) {
+			handler := createUser
+
+			bodyReader := strings.NewReader(test.requestBody)
+			req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
+			req.Header.Add("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			resp := w.Result()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			log.Debug("POST /api/v1/users/ response:")
+			log.Debug(resp.StatusCode)
+			log.Debug(resp.Header.Get("Content-Type"))
+			log.Debug(string(body))
+
+			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+
+			userStore, err := getUserStore()
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
+			assert.True(t,
+				cmp.Equal(test.wantUserStore, userStore, cmpOptions),
+				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUserStore, userStore, cmpOptions)),
+			)
+
+		})
 	}
-	log.Debugf("gotUsersStore: %+v", gotUsersStore)
 }
