@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -130,4 +131,39 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore.List, gotUsers)),
 	)
 
+}
+
+func (suite *EndpointsTestSuite) TestCreateUser() {
+	handler := createUser
+
+	bodyReader := strings.NewReader(`{"display_name": "Anne", "email": "anne@email.com"}`)
+	req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
+	req.Header.Add("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	resp := w.Result()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	log.Debug("POST /api/v1/users/ response:")
+	log.Debug(resp.StatusCode)
+	log.Debug(resp.Header.Get("Content-Type"))
+	log.Debug(string(body))
+
+	gotUsersStore := UserStore{}
+	f, err := ioutil.ReadFile("users.json")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	err = json.Unmarshal(f, &gotUsersStore)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	log.Debugf("gotUsersStore: %+v", gotUsersStore)
 }
