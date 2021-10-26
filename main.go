@@ -95,7 +95,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	u := User{
 		CreatedAt:   time.Now(),
 		DisplayName: request.DisplayName,
-		Email:       request.DisplayName,
+		Email:       request.Email,
 	}
 
 	id := strconv.Itoa(s.Increment)
