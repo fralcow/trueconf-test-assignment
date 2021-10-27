@@ -115,8 +115,6 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var ErrUserNotFound = errors.New("User not found")
-
 func getUser(w http.ResponseWriter, r *http.Request) {
 	f, _ := ioutil.ReadFile(store)
 	s := UserStore{}
@@ -124,9 +122,8 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
 
-	//check if user exists
 	if _, ok := s.List[id]; !ok {
-		render.Render(w, r, NotFound(ErrUserNotFound))
+		_ = render.Render(w, r, ErrNotFound(UserNotFound))
 		return
 	}
 
@@ -154,7 +151,7 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if _, ok := s.List[id]; !ok {
-		_ = render.Render(w, r, ErrInvalidRequest(UserNotFound))
+		_ = render.Render(w, r, ErrNotFound(UserNotFound))
 		return
 	}
 
@@ -176,7 +173,7 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if _, ok := s.List[id]; !ok {
-		_ = render.Render(w, r, ErrInvalidRequest(UserNotFound))
+		_ = render.Render(w, r, ErrNotFound(UserNotFound))
 		return
 	}
 
@@ -211,7 +208,7 @@ func ErrInvalidRequest(err error) render.Renderer {
 	}
 }
 
-func NotFound(err error) render.Renderer {
+func ErrNotFound(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: 404,
