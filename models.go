@@ -25,6 +25,13 @@ type UserResponse struct {
 	Id uint `json:"id"`
 }
 
+func (ur *UserResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	if ur.User == nil {
+		return UserNotFound
+	}
+	return nil
+}
+
 func NewUserResponse(id uint) *UserResponse {
 	resp := &UserResponse{Id: id}
 	if user, _ := dbGetUser(id); user != nil {
@@ -32,13 +39,6 @@ func NewUserResponse(id uint) *UserResponse {
 	}
 
 	return resp
-}
-
-func (ur *UserResponse) Render(w http.ResponseWriter, r *http.Request) error {
-	if ur.User == nil {
-		return UserNotFound
-	}
-	return nil
 }
 
 func NewUsersResopnse(userList *UserList) []render.Renderer {
