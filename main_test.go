@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -119,6 +120,19 @@ func overwriteUserStore(us UserStore) (err error) {
 	return
 }
 
+func (suite *EndpointsTestSuite) TestServer() {
+	go main()
+
+	// give the server some time to start
+	time.Sleep(1 * time.Second)
+
+	resp, err := http.Get("http://127.0.0.1:3333/")
+	suite.NoError(err)
+
+	suite.Equal(200, resp.StatusCode)
+
+}
+
 func (suite *EndpointsTestSuite) TestSearchUsers() {
 	timeNow := time.Now()
 	tests := []struct {
@@ -201,64 +215,94 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 }
 
 func (suite *EndpointsTestSuite) TestCreateUser() {
-	tests := []struct {
-		name           string
-		wantUserStore  UserStore
-		wantStatusCode int
-		requestBody    string
-	}{
-		{
-			name: "Create a user",
-			wantUserStore: UserStore{
-				Increment: 1,
-				List: map[string]User{
-					"1": {
-						CreatedAt:   time.Time{},
-						DisplayName: "Anne",
-						Email:       "anne@email.com",
-					},
-				},
+	t := suite.T()
+	wantUserStore := UserStore{
+		Increment: 1,
+		List: map[string]User{
+			"1": {
+				CreatedAt:   time.Time{},
+				DisplayName: "Alice",
+				Email:       "alice@email.com",
 			},
-			wantStatusCode: 201,
-			requestBody:    `{"display_name": "Anne", "email": "anne@email.com"}`,
 		},
 	}
+	wantStatusCode := 201
+	requestBody := `{"display_name": "Alice", "email": "alice@email.com"}`
 
-	for _, test := range tests {
-		suite.T().Run(test.name, func(t *testing.T) {
-			handler := createUser
+	handler := createUser
 
-			bodyReader := strings.NewReader(test.requestBody)
-			req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
-			req.Header.Add("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-			handler(w, req)
+	bodyReader := strings.NewReader(requestBody)
+	req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
+	req.Header.Add("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler(w, req)
 
-			resp := w.Result()
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-			log.Debug("POST /api/v1/users/ response:")
-			log.Debug(resp.StatusCode)
-			log.Debug(resp.Header.Get("Content-Type"))
-			log.Debug(string(body))
-
-			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
-
-			userStore, err := getUserStore()
-			if err != nil {
-				log.Error(err)
-				return
-			}
-
-			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
-			assert.True(t,
-				cmp.Equal(test.wantUserStore, userStore, cmpOptions),
-				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUserStore, userStore, cmpOptions)),
-			)
-
-		})
+	resp := w.Result()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error(err)
+		return
 	}
+	log.Debug("POST /api/v1/users/ response:")
+	log.Debug(resp.StatusCode)
+	log.Debug(resp.Header.Get("Content-Type"))
+	log.Debug(string(body))
+
+	assert.Equal(t, wantStatusCode, resp.StatusCode)
+
+	userStore, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
+	assert.True(t,
+		cmp.Equal(wantUserStore, userStore, cmpOptions),
+		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore, userStore, cmpOptions)),
+	)
+
+}
+
+func (suite *EndpointsTestSuite) TestCreateUserBadRequest() {
+	t := suite.T()
+	wantUserStore := UserStore{
+		Increment: 0,
+		List:      map[string]User{},
+	}
+	wantStatusCode := 400
+	requestBody := `{"disp"}`
+
+	handler := createUser
+
+	bodyReader := strings.NewReader(requestBody)
+	req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
+	req.Header.Add("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	resp := w.Result()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	log.Debug("POST /api/v1/users/ response:")
+	log.Debug(resp.StatusCode)
+	log.Debug(resp.Header.Get("Content-Type"))
+	log.Debug(string(body))
+
+	assert.Equal(t, wantStatusCode, resp.StatusCode)
+
+	userStore, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
+	assert.True(t,
+		cmp.Equal(wantUserStore, userStore, cmpOptions),
+		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore, userStore, cmpOptions)),
+	)
 }
