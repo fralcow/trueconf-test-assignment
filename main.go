@@ -74,6 +74,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	id, err := dbCreateUser(request.DisplayName, request.Email)
 	if err != nil {
 		render.Render(w, r, ErrInternal(err))
+		return
 	}
 
 	render.Status(r, http.StatusCreated)
