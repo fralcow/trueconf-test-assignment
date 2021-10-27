@@ -348,8 +348,9 @@ func (suite *EndpointsTestSuite) TestGetUser() {
 	tests := []struct {
 		name             string
 		fixtureUserStore UserStore
-		wantStatusCode   int
+		requestUserId    int
 		wantUser         User
+		wantStatusCode   int
 	}{
 		{
 			name: "Existing user",
@@ -357,8 +358,19 @@ func (suite *EndpointsTestSuite) TestGetUser() {
 				Increment: 1,
 				List:      map[string]User{"1": userAlice},
 			},
-			wantStatusCode: 200,
+			requestUserId:  1,
 			wantUser:       userAlice,
+			wantStatusCode: 200,
+		},
+		{
+			name: "Non existent user",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List:      map[string]User{"1": userAlice},
+			},
+			requestUserId:  2,
+			wantUser:       User{},
+			wantStatusCode: 404,
 		},
 	}
 
@@ -375,7 +387,9 @@ func (suite *EndpointsTestSuite) TestGetUser() {
 			ts := httptest.NewServer(r)
 			defer ts.Close()
 
-			req, err := http.NewRequest("GET", ts.URL+"/api/v1/users/1", nil)
+			req, err := http.NewRequest("GET",
+				ts.URL+"/api/v1/users/"+fmt.Sprint(test.requestUserId),
+				nil)
 			resp, body := testRequest(t, ts, req)
 
 			log.Debug(req.Method, req.URL)
