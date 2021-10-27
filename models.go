@@ -13,6 +13,13 @@ type CreateUserRequest struct {
 
 func (c *CreateUserRequest) Bind(r *http.Request) error { return nil }
 
+type UpdateUserRequest struct {
+	DisplayName *string `json:"display_name,omitempty"`
+	Email       *string `json:"email,omitempty"`
+}
+
+func (c *UpdateUserRequest) Bind(r *http.Request) error { return nil }
+
 type UserResponse struct {
 	*User
 	Id uint `json:"id"`

@@ -99,13 +99,6 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type UpdateUserRequest struct {
-	DisplayName *string `json:"display_name,omitempty"`
-	Email       *string `json:"email,omitempty"`
-}
-
-func (c *UpdateUserRequest) Bind(r *http.Request) error { return nil }
-
 func updateUser(w http.ResponseWriter, r *http.Request) {
 	s, err := getUserStore()
 	if err != nil {
