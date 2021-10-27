@@ -6,3 +6,4 @@
 # Refactoring
 1. Change ErrInvalidRequest to ErrNotFound to return 404 error
 2. Change UpdateUserRequest fields to pointers to allow check for nil fields
+3. Move errors to a separate file
