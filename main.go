@@ -1,18 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
-	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -84,8 +79,8 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 func getUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUserId(r)
 	if err != nil {
-		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
+		return
 	}
 
 	if err := render.Render(w, r, NewUserResponse(id)); err != nil {
@@ -113,44 +108,31 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := dbUpdateUser(id, request.DisplayName, request.Email); err != nil {
+		if errors.Is(err, UserNotFound) {
+			render.Render(w, r, ErrNotFound(err))
+			return
+		}
+
 		render.Render(w, r, ErrInternal(err))
+		return
 	}
 
 	render.Status(r, http.StatusNoContent)
 }
 
 func deleteUser(w http.ResponseWriter, r *http.Request) {
-	s, err := getUserStore()
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
-	}
-
 	id, err := parseUserId(r)
 	if err != nil {
-		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
 		return
 	}
 
-	if _, ok := s.List[id]; !ok {
-		render.Render(w, r, ErrNotFound(UserNotFound))
-		return
-	}
+	if err := dbDeleteUser(id); err != nil {
+		if errors.Is(err, UserNotFound) {
+			render.Render(w, r, ErrNotFound(err))
+			return
+		}
 
-	delete(s.List, id)
-
-	b, err := json.Marshal(&s)
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
-	}
-
-	err = ioutil.WriteFile(store, b, fs.ModePerm)
-	if err != nil {
-		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
 		return
 	}

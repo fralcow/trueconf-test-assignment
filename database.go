@@ -129,3 +129,20 @@ func dbUpdateUser(id uint, displayName *string, email *string) (err error) {
 
 	return
 }
+
+func dbDeleteUser(id uint) (err error) {
+	us, err := getUserStore()
+	if err != nil {
+		return
+	}
+
+	if _, ok := us.List[id]; !ok {
+		return UserNotFound
+	}
+
+	delete(us.List, id)
+
+	err = overwriteUserStore(us)
+
+	return
+}
