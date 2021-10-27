@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -62,7 +61,7 @@ func (suite *EndpointsTestSuite) SetupSuite() {
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	//r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
@@ -129,27 +128,21 @@ func overwriteUserStore(us UserStore) (err error) {
 	return
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
-	req, err := http.NewRequest(method, ts.URL+path, body)
+func testRequest(t *testing.T, ts *httptest.Server, req *http.Request) (response *http.Response, responseBody []byte) {
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
-		return nil, ""
+		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	responseBody, err = ioutil.ReadAll(response.Body)
 	if err != nil {
 		t.Fatal(err)
-		return nil, ""
+		return
 	}
+	defer response.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-		return nil, ""
-	}
-	defer resp.Body.Close()
-
-	return resp, string(respBody)
+	return
 }
 
 func (suite *EndpointsTestSuite) TestServer() {
@@ -241,19 +234,19 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 				return
 			}
 
-			handler := searchUsers
+			ts := httptest.NewServer(r)
+			defer ts.Close()
 
-			req := httptest.NewRequest("GET", "/", nil)
-			w := httptest.NewRecorder()
-			handler(w, req)
-
-			resp := w.Result()
-			body, err := io.ReadAll(resp.Body)
+			req, err := http.NewRequest("GET", ts.URL+"/api/v1/users/", nil)
 			if err != nil {
 				t.Error(err)
 				return
 			}
-			log.Debug("GET / response:")
+			req.Header.Add("Accept", "application/json")
+
+			resp, body := testRequest(t, ts, req)
+
+			log.Debug(req.Method, req.URL)
 			log.Debug(resp.StatusCode)
 			log.Debug(resp.Header.Get("Content-Type"))
 			log.Debug(string(body))
@@ -276,138 +269,131 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 }
 
 func (suite *EndpointsTestSuite) TestCreateUser() {
-	t := suite.T()
-	wantUserStore := UserStore{
-		Increment: 1,
-		List: map[string]User{
-			"1": {
-				CreatedAt:   time.Time{},
-				DisplayName: "Alice",
-				Email:       "alice@email.com",
+
+	tests := []struct {
+		name           string
+		wantUserStore  UserStore
+		requestBody    string
+		wantStatusCode int
+	}{
+		{
+			name: "Create a user",
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": {
+						CreatedAt:   time.Time{},
+						DisplayName: "Alice",
+						Email:       "alice@email.com",
+					},
+				},
 			},
+			wantStatusCode: 201,
+			requestBody:    `{"display_name": "Alice", "email": "alice@email.com"}`,
+		},
+		{
+			name:           "Bad request",
+			wantUserStore:  UserStore{List: map[string]User{}},
+			wantStatusCode: 400,
+			requestBody:    `{"disp"}`,
 		},
 	}
-	wantStatusCode := 201
-	requestBody := `{"display_name": "Alice", "email": "alice@email.com"}`
 
-	handler := createUser
+	for _, test := range tests {
+		overwriteUserStore(UserStore{List: map[string]User{}})
 
-	bodyReader := strings.NewReader(requestBody)
-	req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
-	req.Header.Add("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	handler(w, req)
+		suite.T().Run(test.name, func(t *testing.T) {
 
-	resp := w.Result()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Error(err)
-		return
+			bodyReader := strings.NewReader(test.requestBody)
+
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			req, err := http.NewRequest("POST", ts.URL+"/api/v1/users", bodyReader)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			req.Header.Add("Content-Type", "application/json")
+
+			resp, body := testRequest(t, ts, req)
+
+			log.Debug(req.Method, req.URL)
+			log.Debug(resp.StatusCode)
+			log.Debug(resp.Header.Get("Content-Type"))
+			log.Debug(string(body))
+
+			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+
+			userStore, err := getUserStore()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
+			assert.True(t,
+				cmp.Equal(test.wantUserStore, userStore, cmpOptions),
+				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUserStore, userStore, cmpOptions)),
+			)
+		})
 	}
-	log.Debug("POST /api/v1/users/ response:")
-	log.Debug(resp.StatusCode)
-	log.Debug(resp.Header.Get("Content-Type"))
-	log.Debug(string(body))
-
-	assert.Equal(t, wantStatusCode, resp.StatusCode)
-
-	userStore, err := getUserStore()
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
-	assert.True(t,
-		cmp.Equal(wantUserStore, userStore, cmpOptions),
-		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore, userStore, cmpOptions)),
-	)
-
-}
-
-func (suite *EndpointsTestSuite) TestCreateUserBadRequest() {
-	t := suite.T()
-	wantUserStore := UserStore{
-		Increment: 0,
-		List:      map[string]User{},
-	}
-	wantStatusCode := 400
-	requestBody := `{"disp"}`
-
-	handler := createUser
-
-	bodyReader := strings.NewReader(requestBody)
-	req := httptest.NewRequest("POST", "/api/v1/users/", bodyReader)
-	req.Header.Add("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	log.Debug("POST /api/v1/users/ response:")
-	log.Debug(resp.StatusCode)
-	log.Debug(resp.Header.Get("Content-Type"))
-	log.Debug(string(body))
-
-	assert.Equal(t, wantStatusCode, resp.StatusCode)
-
-	userStore, err := getUserStore()
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
-	assert.True(t,
-		cmp.Equal(wantUserStore, userStore, cmpOptions),
-		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore, userStore, cmpOptions)),
-	)
 }
 
 func (suite *EndpointsTestSuite) TestGetUser() {
-	t := suite.T()
-
-	ts := httptest.NewServer(r)
-	defer ts.Close()
-
 	userAlice := User{CreatedAt: time.Now(),
 		DisplayName: "Alice",
 		Email:       "alice@email.com",
 	}
-	fixtureUserStore := UserStore{
-		Increment: 1,
-		List:      map[string]User{"1": userAlice},
+	tests := []struct {
+		name             string
+		fixtureUserStore UserStore
+		wantStatusCode   int
+		wantUser         User
+	}{
+		{
+			name: "Existing user",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List:      map[string]User{"1": userAlice},
+			},
+			wantStatusCode: 200,
+			wantUser:       userAlice,
+		},
 	}
 
-	//overwrite database file
-	err := overwriteUserStore(fixtureUserStore)
-	if err != nil {
-		t.Error(err)
-		return
+	for _, test := range tests {
+		suite.T().Run(test.name, func(t *testing.T) {
+
+			//overwrite database file
+			err := overwriteUserStore(test.fixtureUserStore)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			req, err := http.NewRequest("GET", ts.URL+"/api/v1/users/1", nil)
+			resp, body := testRequest(t, ts, req)
+
+			log.Debug(req.Method, req.URL)
+			log.Debug(resp.StatusCode)
+			log.Debug(resp.Header.Get("Content-Type"))
+			log.Debug(string(body))
+
+			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+
+			gotUser := User{}
+			err = json.Unmarshal(body, &gotUser)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			assert.True(t, cmp.Equal(test.wantUser, gotUser), cmp.Diff(test.wantUser, gotUser))
+
+		})
 	}
-
-	wantStatusCode := 200
-	wantUser := userAlice
-
-	resp, body := testRequest(t, ts, "GET", "/api/v1/users/1", nil)
-
-	log.Debug(resp.StatusCode)
-	log.Debug(resp.Header.Get("Content-Type"))
-	log.Debug(string(body))
-
-	assert.Equal(t, wantStatusCode, resp.StatusCode)
-
-	gotUser := User{}
-	err = json.Unmarshal([]byte(body), &gotUser)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	assert.True(t, cmp.Equal(wantUser, gotUser), cmp.Diff(wantUser, gotUser))
-
 }
