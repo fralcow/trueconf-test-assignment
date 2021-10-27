@@ -164,6 +164,34 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 		},
 		{
 			name: "two entries",
+			userStore: UserStore{
+				Increment: 2,
+				List: UserList{
+					"1": User{
+						CreatedAt:   timeNow,
+						DisplayName: "Alice",
+						Email:       "alice@email.com",
+					},
+					"2": User{
+						CreatedAt:   timeNow,
+						DisplayName: "Bob",
+						Email:       "bob@email.com",
+					},
+				},
+			},
+			wantUserList: UserList{
+				"1": User{
+					CreatedAt:   timeNow,
+					DisplayName: "Alice",
+					Email:       "alice@email.com",
+				},
+				"2": User{
+					CreatedAt:   timeNow,
+					DisplayName: "Bob",
+					Email:       "bob@email.com",
+				},
+			},
+			wantErr: nil,
 		},
 	}
 
