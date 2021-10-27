@@ -129,16 +129,16 @@ func (suite *EndpointsTestSuite) TestServer() {
 func (suite *EndpointsTestSuite) TestSearchUsers() {
 	timeNow := time.Now()
 	tests := []struct {
-		name         string
-		userStore    UserStore
-		wantUserList UserList
-		wantErr      error
+		name              string
+		userStore         UserStore
+		wantUsersResponse []UserResponse
+		wantErr           error
 	}{
 		{
-			name:         "empty user store",
-			userStore:    UserStore{List: UserList{}},
-			wantUserList: UserList{},
-			wantErr:      nil,
+			name:              "empty user store",
+			userStore:         UserStore{List: UserList{}},
+			wantUsersResponse: []UserResponse{},
+			wantErr:           nil,
 		},
 		{
 			name: "one entry",
@@ -152,12 +152,16 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 					},
 				},
 			},
-			wantUserList: UserList{
-				1: User{
-					CreatedAt:   timeNow,
-					DisplayName: "Alice",
-					Email:       "alice@email.com",
-				}},
+			wantUsersResponse: []UserResponse{
+				{
+					User: &User{
+						CreatedAt:   timeNow,
+						DisplayName: "Alice",
+						Email:       "alice@email.com",
+					},
+					Id: 1,
+				},
+			},
 			wantErr: nil,
 		},
 		{
@@ -177,16 +181,22 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 					},
 				},
 			},
-			wantUserList: UserList{
-				1: User{
-					CreatedAt:   timeNow,
-					DisplayName: "Alice",
-					Email:       "alice@email.com",
+			wantUsersResponse: []UserResponse{
+				{
+					User: &User{
+						CreatedAt:   timeNow,
+						DisplayName: "Alice",
+						Email:       "alice@email.com",
+					},
+					Id: 1,
 				},
-				2: User{
-					CreatedAt:   timeNow,
-					DisplayName: "Bob",
-					Email:       "bob@email.com",
+				{
+					User: &User{
+						CreatedAt:   timeNow,
+						DisplayName: "Bob",
+						Email:       "bob@email.com",
+					},
+					Id: 2,
 				},
 			},
 			wantErr: nil,
@@ -219,8 +229,8 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 			log.Debug(resp.Header.Get("Content-Type"))
 			log.Debug(string(body))
 
-			gotUserList := UserList{}
-			err = json.Unmarshal(body, &gotUserList)
+			gotUsersResponse := []UserResponse{}
+			err = json.Unmarshal(body, &gotUsersResponse)
 			if err != nil {
 				t.Error(err)
 				return
@@ -228,8 +238,8 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 
 			//we want response to match a list of users in the db
 			assert.True(t,
-				cmp.Equal(test.wantUserList, gotUserList),
-				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUserList, gotUserList)),
+				cmp.Equal(test.wantUsersResponse, gotUsersResponse),
+				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUsersResponse, gotUsersResponse)),
 			)
 
 		})

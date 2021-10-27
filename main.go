@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"io/ioutil"
 	"net/http"
@@ -51,14 +52,16 @@ func setRoutes(r *chi.Mux) {
 }
 
 func searchUsers(w http.ResponseWriter, r *http.Request) {
-	s, err := getUserStore()
+	userList, err := dbGetUserList()
 	if err != nil {
-		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
 		return
 	}
 
-	render.JSON(w, r, s.List)
+	if err := render.RenderList(w, r, NewUsersResopnse(userList)); err != nil {
+		render.Render(w, r, ErrRender(err))
+		return
+	}
 }
 
 type CreateUserRequest struct {
@@ -113,39 +116,22 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type UserResponse struct {
-	*User
-}
-
-func NewUserResponse(user *User) *UserResponse {
-	resp := &UserResponse{User: user}
-
-	return resp
-}
-
-func (ur *UserResponse) Render(w http.ResponseWriter, r *http.Request) error { return nil }
-
 func getUser(w http.ResponseWriter, r *http.Request) {
-	s, err := getUserStore()
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
-	}
-
 	id, err := parseUserId(r)
 	if err != nil {
 		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
 	}
 
-	if _, ok := s.List[id]; !ok {
-		render.Render(w, r, ErrNotFound(UserNotFound))
+	if err := render.Render(w, r, NewUserResponse(id)); err != nil {
+		if errors.Is(err, UserNotFound) {
+			render.Render(w, r, ErrNotFound(err))
+			return
+		}
+
+		render.Render(w, r, ErrRender(err))
 		return
 	}
-
-	user := s.List[id]
-	render.Render(w, r, NewUserResponse(&user))
 }
 
 type UpdateUserRequest struct {
@@ -246,4 +232,33 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusNoContent)
+}
+
+type UserResponse struct {
+	*User
+	Id uint `json:"id"`
+}
+
+func NewUserResponse(id uint) *UserResponse {
+	resp := &UserResponse{Id: id}
+	if user, _ := dbGetUser(id); user != nil {
+		resp.User = user
+	}
+
+	return resp
+}
+
+func (ur *UserResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	if ur.User == nil {
+		return UserNotFound
+	}
+	return nil
+}
+
+func NewUsersResopnse(userList *UserList) []render.Renderer {
+	list := []render.Renderer{}
+	for k := range *userList {
+		list = append(list, NewUserResponse(k))
+	}
+	return list
 }

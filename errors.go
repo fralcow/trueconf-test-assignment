@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	UserNotFound = errors.New("user_not_found")
+	UserNotFound = errors.New("User not found")
 )
 
 type ErrResponse struct {
@@ -38,7 +38,16 @@ func ErrNotFound(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: 404,
-		StatusText:     "Not found",
+		StatusText:     "Resource not found",
+		ErrorText:      err.Error(),
+	}
+}
+
+func ErrRender(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: 422,
+		StatusText:     "Error rendering response",
 		ErrorText:      err.Error(),
 	}
 }

@@ -69,3 +69,12 @@ func dbGetUser(id uint) (user *User, err error) {
 	}
 	return nil, UserNotFound
 }
+
+func dbGetUserList() (userList *UserList, err error) {
+	s, err := getUserStore()
+	if err != nil {
+		return
+	}
+
+	return &s.List, nil
+}
