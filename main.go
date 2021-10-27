@@ -115,12 +115,20 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+var ErrUserNotFound = errors.New("User not found")
+
 func getUser(w http.ResponseWriter, r *http.Request) {
 	f, _ := ioutil.ReadFile(store)
 	s := UserStore{}
 	_ = json.Unmarshal(f, &s)
 
 	id := chi.URLParam(r, "id")
+
+	//check if user exists
+	if _, ok := s.List[id]; !ok {
+		render.Render(w, r, NotFound(ErrUserNotFound))
+		return
+	}
 
 	render.JSON(w, r, s.List[id])
 }
@@ -199,6 +207,15 @@ func ErrInvalidRequest(err error) render.Renderer {
 		Err:            err,
 		HTTPStatusCode: 400,
 		StatusText:     "Invalid request.",
+		ErrorText:      err.Error(),
+	}
+}
+
+func NotFound(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: 404,
+		StatusText:     "Not found",
 		ErrorText:      err.Error(),
 	}
 }
