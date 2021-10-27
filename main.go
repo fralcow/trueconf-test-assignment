@@ -6,12 +6,15 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const store = `users.json`
@@ -69,10 +72,45 @@ func setRoutes(r *chi.Mux) {
 	return
 }
 
+func getUserStore() (us UserStore, err error) {
+
+	f, err := ioutil.ReadFile(store)
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal(f, &us)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	return
+}
+
+func overwriteUserStore(us UserStore) (err error) {
+	f, err := os.OpenFile(store, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	dat, err := json.Marshal(us)
+	if err != nil {
+		return
+	}
+	_, err = f.Write(dat)
+	log.Debugf("UserStore data: %v", string(dat))
+	return
+}
+
 func searchUsers(w http.ResponseWriter, r *http.Request) {
-	f, _ := ioutil.ReadFile(store)
-	s := UserStore{}
-	_ = json.Unmarshal(f, &s)
+	s, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	render.JSON(w, r, s.List)
 }
@@ -85,14 +123,17 @@ type CreateUserRequest struct {
 func (c *CreateUserRequest) Bind(r *http.Request) error { return nil }
 
 func createUser(w http.ResponseWriter, r *http.Request) {
-	f, _ := ioutil.ReadFile(store)
-	s := UserStore{}
-	_ = json.Unmarshal(f, &s)
+	s, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	request := CreateUserRequest{}
 
 	if err := render.Bind(r, &request); err != nil {
-		_ = render.Render(w, r, ErrInvalidRequest(err))
+		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
@@ -106,8 +147,19 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	id := strconv.Itoa(s.Increment)
 	s.List[id] = u
 
-	b, _ := json.Marshal(&s)
-	_ = ioutil.WriteFile(store, b, fs.ModePerm)
+	b, err := json.Marshal(&s)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
+
+	err = ioutil.WriteFile(store, b, fs.ModePerm)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, map[string]interface{}{
@@ -116,14 +168,17 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
-	f, _ := ioutil.ReadFile(store)
-	s := UserStore{}
-	_ = json.Unmarshal(f, &s)
+	s, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	id := chi.URLParam(r, "id")
 
 	if _, ok := s.List[id]; !ok {
-		_ = render.Render(w, r, ErrNotFound(UserNotFound))
+		render.Render(w, r, ErrNotFound(UserNotFound))
 		return
 	}
 
@@ -138,21 +193,24 @@ type UpdateUserRequest struct {
 func (c *UpdateUserRequest) Bind(r *http.Request) error { return nil }
 
 func updateUser(w http.ResponseWriter, r *http.Request) {
-	f, _ := ioutil.ReadFile(store)
-	s := UserStore{}
-	_ = json.Unmarshal(f, &s)
+	s, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	request := UpdateUserRequest{}
 
 	if err := render.Bind(r, &request); err != nil {
-		_ = render.Render(w, r, ErrInvalidRequest(err))
+		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	id := chi.URLParam(r, "id")
 
 	if _, ok := s.List[id]; !ok {
-		_ = render.Render(w, r, ErrNotFound(UserNotFound))
+		render.Render(w, r, ErrNotFound(UserNotFound))
 		return
 	}
 
@@ -167,28 +225,52 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 
 	s.List[id] = u
 
-	b, _ := json.Marshal(&s)
-	_ = ioutil.WriteFile(store, b, fs.ModePerm)
+	b, err := json.Marshal(&s)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
+	err = ioutil.WriteFile(store, b, fs.ModePerm)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	render.Status(r, http.StatusNoContent)
 }
 
 func deleteUser(w http.ResponseWriter, r *http.Request) {
-	f, _ := ioutil.ReadFile(store)
-	s := UserStore{}
-	_ = json.Unmarshal(f, &s)
+	s, err := getUserStore()
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	id := chi.URLParam(r, "id")
 
 	if _, ok := s.List[id]; !ok {
-		_ = render.Render(w, r, ErrNotFound(UserNotFound))
+		render.Render(w, r, ErrNotFound(UserNotFound))
 		return
 	}
 
 	delete(s.List, id)
 
-	b, _ := json.Marshal(&s)
-	_ = ioutil.WriteFile(store, b, fs.ModePerm)
+	b, err := json.Marshal(&s)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
+
+	err = ioutil.WriteFile(store, b, fs.ModePerm)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	render.Status(r, http.StatusNoContent)
 }
@@ -221,6 +303,15 @@ func ErrNotFound(err error) render.Renderer {
 		Err:            err,
 		HTTPStatusCode: 404,
 		StatusText:     "Not found",
+		ErrorText:      err.Error(),
+	}
+}
+
+func ErrInternal(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: 500,
+		StatusText:     "Internal server error",
 		ErrorText:      err.Error(),
 	}
 }

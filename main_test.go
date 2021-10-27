@@ -96,38 +96,6 @@ func (suite *EndpointsTestSuite) TearDownTest() {
 	}
 }
 
-func getUserStore() (us UserStore, err error) {
-
-	f, err := ioutil.ReadFile("users.json")
-	if err != nil {
-		return
-	}
-
-	err = json.Unmarshal(f, &us)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	return
-}
-
-func overwriteUserStore(us UserStore) (err error) {
-	f, err := os.OpenFile("users.json", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	dat, err := json.Marshal(us)
-	if err != nil {
-		return
-	}
-	_, err = f.Write(dat)
-	log.Debugf("UserStore data: %v", string(dat))
-	return
-}
-
 func testRequest(t *testing.T, ts *httptest.Server, req *http.Request) (response *http.Response, responseBody []byte) {
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
