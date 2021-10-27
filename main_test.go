@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/google/go-cmp/cmp"
@@ -20,6 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
+
+var r *chi.Mux
 
 type EndpointsTestSuite struct {
 	suite.Suite
@@ -53,6 +57,16 @@ func (suite *EndpointsTestSuite) SetupSuite() {
 	if e != nil {
 		log.Fatal(e)
 	}
+
+	r = chi.NewRouter()
+
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	setRoutes(r)
 }
 
 func (suite *EndpointsTestSuite) TearDownSuite() {
@@ -113,6 +127,29 @@ func overwriteUserStore(us UserStore) (err error) {
 	_, err = f.Write(dat)
 	log.Debugf("UserStore data: %v", string(dat))
 	return
+}
+
+func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
+	req, err := http.NewRequest(method, ts.URL+path, body)
+	if err != nil {
+		t.Fatal(err)
+		return nil, ""
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+		return nil, ""
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+		return nil, ""
+	}
+	defer resp.Body.Close()
+
+	return resp, string(respBody)
 }
 
 func (suite *EndpointsTestSuite) TestServer() {
@@ -329,4 +366,48 @@ func (suite *EndpointsTestSuite) TestCreateUserBadRequest() {
 		cmp.Equal(wantUserStore, userStore, cmpOptions),
 		fmt.Sprintf("Diff: %v", cmp.Diff(wantUserStore, userStore, cmpOptions)),
 	)
+}
+
+func (suite *EndpointsTestSuite) TestGetUser() {
+	t := suite.T()
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	userAlice := User{CreatedAt: time.Now(),
+		DisplayName: "Alice",
+		Email:       "alice@email.com",
+	}
+	fixtureUserStore := UserStore{
+		Increment: 1,
+		List:      map[string]User{"1": userAlice},
+	}
+
+	//overwrite database file
+	err := overwriteUserStore(fixtureUserStore)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	wantStatusCode := 200
+	wantUser := userAlice
+
+	resp, body := testRequest(t, ts, "GET", "/api/v1/users/1", nil)
+
+	log.Debug(resp.StatusCode)
+	log.Debug(resp.Header.Get("Content-Type"))
+	log.Debug(string(body))
+
+	assert.Equal(t, wantStatusCode, resp.StatusCode)
+
+	gotUser := User{}
+	err = json.Unmarshal([]byte(body), &gotUser)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	assert.True(t, cmp.Equal(wantUser, gotUser), cmp.Diff(wantUser, gotUser))
+
 }
