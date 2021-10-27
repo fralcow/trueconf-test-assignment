@@ -411,3 +411,140 @@ func (suite *EndpointsTestSuite) TestGetUser() {
 		})
 	}
 }
+
+func (suite *EndpointsTestSuite) TestUpdateUser() {
+	userAlice := User{CreatedAt: time.Now(),
+		DisplayName: "Alice",
+		Email:       "alice@email.com",
+	}
+
+	tests := []struct {
+		name             string
+		fixtureUserStore UserStore
+		wantUserStore    UserStore
+		requestUserId    int
+		requestBody      string
+		wantStatusCode   int
+	}{
+		{
+			name: "Update user's name and email",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": {
+						DisplayName: "Alice1",
+						Email:       "alice1@email.com",
+					},
+				},
+			},
+			requestUserId: 1,
+			requestBody: `{"display_name": "Alice1",
+						   "email": "alice1@email.com"}`,
+			wantStatusCode: 200,
+		},
+		{
+			name: "Update user's name",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": {
+						DisplayName: "Alice1",
+						Email:       "alice@email.com",
+					},
+				},
+			},
+			requestUserId:  1,
+			requestBody:    `{"display_name": "Alice1"}`,
+			wantStatusCode: 200,
+		},
+		{
+			name: "Update non existent user",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			requestUserId:  2,
+			requestBody:    `{"display_name": "Alice1"}`,
+			wantStatusCode: 404,
+		},
+		{
+			name: "Bad request",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			requestUserId:  1,
+			requestBody:    `{"display"}`,
+			wantStatusCode: 400,
+		},
+	}
+
+	for _, test := range tests {
+		suite.T().Run(test.name, func(t *testing.T) {
+
+			//overwrite database file
+			err := overwriteUserStore(test.fixtureUserStore)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			bodyReader := strings.NewReader(test.requestBody)
+
+			req, err := http.NewRequest("PATCH",
+				ts.URL+"/api/v1/users/"+fmt.Sprint(test.requestUserId)+"/",
+				bodyReader)
+			req.Header.Add("Content-Type", "application/json")
+
+			resp, body := testRequest(t, ts, req)
+
+			log.Debug(req.Method, req.URL)
+			log.Debug(resp.StatusCode)
+			log.Debug(resp.Header.Get("Content-Type"))
+			log.Debug(string(body))
+
+			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+
+			gotUserStore, err := getUserStore()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
+			assert.True(t, cmp.Equal(test.wantUserStore, gotUserStore, cmpOptions), cmp.Diff(test.wantUserStore, gotUserStore, cmpOptions))
+
+		})
+	}
+}
