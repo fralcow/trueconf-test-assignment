@@ -253,7 +253,7 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 		requestBody      string
 		wantUserStore    UserStore
 		wantStatusCode   int
-		wantResponseBody string
+		wantResponseUser UserResponse
 	}{
 		{
 			name:        "Create a user",
@@ -268,8 +268,15 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 					},
 				},
 			},
-			wantStatusCode:   201,
-			wantResponseBody: "{\"user_id\":1}\n",
+			wantStatusCode: 201,
+			wantResponseUser: UserResponse{
+				User: &User{
+					CreatedAt:   time.Time{},
+					DisplayName: "Alice",
+					Email:       "alice@email.com",
+				},
+				Id: 1,
+			},
 		},
 		{
 			name:           "Bad request",
@@ -304,8 +311,17 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 			log.Debug(string(body))
 
 			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+
+			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
 			if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-				assert.Equal(t, test.wantResponseBody, string(body))
+				gotResponse := UserResponse{}
+
+				err = json.Unmarshal(body, &gotResponse)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				assert.True(t, cmp.Equal(test.wantResponseUser, gotResponse, cmpOptions))
 			}
 
 			userStore, err := getUserStore()
@@ -314,7 +330,6 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 				return
 			}
 
-			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
 			assert.True(t,
 				cmp.Equal(test.wantUserStore, userStore, cmpOptions),
 				fmt.Sprintf("Diff: %v", cmp.Diff(test.wantUserStore, userStore, cmpOptions)),

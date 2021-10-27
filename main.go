@@ -72,15 +72,7 @@ type CreateUserRequest struct {
 func (c *CreateUserRequest) Bind(r *http.Request) error { return nil }
 
 func createUser(w http.ResponseWriter, r *http.Request) {
-	s, err := getUserStore()
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
-	}
-
 	request := CreateUserRequest{}
-
 	if err := render.Bind(r, &request); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
@@ -88,22 +80,11 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 
 	id, err := dbCreateUser(request.DisplayName, request.Email)
 	if err != nil {
-		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
-		return
-	}
-
-	err = ioutil.WriteFile(store, b, fs.ModePerm)
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, map[string]interface{}{
-		"user_id": id,
-	})
+	render.Render(w, r, NewUserResponse(id))
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
