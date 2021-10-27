@@ -113,6 +113,18 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type UserResponse struct {
+	*User
+}
+
+func NewUserResponse(user *User) *UserResponse {
+	resp := &UserResponse{User: user}
+
+	return resp
+}
+
+func (ur *UserResponse) Render(w http.ResponseWriter, r *http.Request) error { return nil }
+
 func getUser(w http.ResponseWriter, r *http.Request) {
 	s, err := getUserStore()
 	if err != nil {
@@ -132,7 +144,8 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, s.List[id])
+	user := s.List[id]
+	render.Render(w, r, NewUserResponse(&user))
 }
 
 type UpdateUserRequest struct {
