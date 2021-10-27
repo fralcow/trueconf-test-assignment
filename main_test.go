@@ -145,6 +145,7 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 		{
 			name: "one entry",
 			userStore: UserStore{
+				Increment: 1,
 				List: UserList{
 					"1": User{
 						CreatedAt:   timeNow,
