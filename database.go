@@ -78,3 +78,28 @@ func dbGetUserList() (userList *UserList, err error) {
 
 	return &s.List, nil
 }
+
+func dbCreateUser(displayName, email string) (id uint, err error) {
+
+	s, err := getUserStore()
+	if err != nil {
+		return
+	}
+
+	s.Increment++
+	u := User{
+		CreatedAt:   time.Now(),
+		DisplayName: displayName,
+		Email:       email,
+	}
+
+	id = s.Increment
+	s.List[id] = u
+
+	err = overwriteUserStore(s)
+	if err != nil {
+		return
+	}
+
+	return
+}

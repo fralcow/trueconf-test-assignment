@@ -86,17 +86,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.Increment++
-	u := User{
-		CreatedAt:   time.Now(),
-		DisplayName: request.DisplayName,
-		Email:       request.Email,
-	}
-
-	id := s.Increment
-	s.List[id] = u
-
-	b, err := json.Marshal(&s)
+	id, err := dbCreateUser(request.DisplayName, request.Email)
 	if err != nil {
 		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
