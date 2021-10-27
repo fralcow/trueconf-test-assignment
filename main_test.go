@@ -69,14 +69,8 @@ func (suite *EndpointsTestSuite) SetupTest() {
 	}
 	defer f.Close()
 
-	list := make(map[string]User)
-	userStore := UserStore{List: list}
-	data, err := json.Marshal(userStore)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Debugf("user store data: %v", string(data))
-	_, err = f.Write(data)
+	userStore := UserStore{List: map[string]User{}}
+	err = overwriteUserStore(userStore)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,6 +111,7 @@ func overwriteUserStore(us UserStore) (err error) {
 		return
 	}
 	_, err = f.Write(dat)
+	log.Debugf("UserStore data: %v", string(dat))
 	return
 }
 
