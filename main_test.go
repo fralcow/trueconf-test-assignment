@@ -172,7 +172,7 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 			//overwrite database file
 			err := overwriteUserStore(test.userStore)
 			if err != nil {
-				log.Error(err)
+				t.Error(err)
 				return
 			}
 
@@ -185,7 +185,7 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 			resp := w.Result()
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				log.Error(err)
+				t.Error(err)
 				return
 			}
 			log.Debug("GET / response:")
@@ -196,7 +196,7 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 			gotUserList := UserList{}
 			err = json.Unmarshal(body, &gotUserList)
 			if err != nil {
-				log.Error(err)
+				t.Error(err)
 				return
 			}
 
@@ -236,7 +236,7 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 	resp := w.Result()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error(err)
+		t.Error(err)
 		return
 	}
 	log.Debug("POST /api/v1/users/ response:")
@@ -248,7 +248,7 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 
 	userStore, err := getUserStore()
 	if err != nil {
-		log.Error(err)
+		t.Error(err)
 		return
 	}
 
@@ -280,7 +280,7 @@ func (suite *EndpointsTestSuite) TestCreateUserBadRequest() {
 	resp := w.Result()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error(err)
+		t.Error(err)
 		return
 	}
 	log.Debug("POST /api/v1/users/ response:")
@@ -292,7 +292,7 @@ func (suite *EndpointsTestSuite) TestCreateUserBadRequest() {
 
 	userStore, err := getUserStore()
 	if err != nil {
-		log.Error(err)
+		t.Error(err)
 		return
 	}
 
