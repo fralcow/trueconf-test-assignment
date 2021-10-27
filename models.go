@@ -6,6 +6,13 @@ import (
 	"github.com/go-chi/render"
 )
 
+type CreateUserRequest struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+}
+
+func (c *CreateUserRequest) Bind(r *http.Request) error { return nil }
+
 type UserResponse struct {
 	*User
 	Id uint `json:"id"`

@@ -64,13 +64,6 @@ func searchUsers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type CreateUserRequest struct {
-	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
-}
-
-func (c *CreateUserRequest) Bind(r *http.Request) error { return nil }
-
 func createUser(w http.ResponseWriter, r *http.Request) {
 	request := CreateUserRequest{}
 	if err := render.Bind(r, &request); err != nil {
