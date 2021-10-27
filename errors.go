@@ -48,6 +48,7 @@ func ErrInternal(err error) render.Renderer {
 		Err:            err,
 		HTTPStatusCode: 500,
 		StatusText:     "Internal server error",
-		ErrorText:      err.Error(),
+		//don't sent error text over the wire as it may contain sensitive information
+		ErrorText: "",
 	}
 }
