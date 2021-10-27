@@ -42,6 +42,12 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	setRoutes(r)
+
+	http.ListenAndServe(":3333", r)
+}
+
+func setRoutes(r *chi.Mux) {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(time.Now().String()))
 	})
@@ -60,8 +66,7 @@ func main() {
 			})
 		})
 	})
-
-	http.ListenAndServe(":3333", r)
+	return
 }
 
 func searchUsers(w http.ResponseWriter, r *http.Request) {
