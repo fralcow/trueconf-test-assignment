@@ -239,13 +239,15 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 func (suite *EndpointsTestSuite) TestCreateUser() {
 
 	tests := []struct {
-		name           string
-		wantUserStore  UserStore
-		requestBody    string
-		wantStatusCode int
+		name             string
+		requestBody      string
+		wantUserStore    UserStore
+		wantStatusCode   int
+		wantResponseBody string
 	}{
 		{
-			name: "Create a user",
+			name:        "Create a user",
+			requestBody: `{"display_name": "Alice", "email": "alice@email.com"}`,
 			wantUserStore: UserStore{
 				Increment: 1,
 				List: map[string]User{
@@ -256,14 +258,14 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 					},
 				},
 			},
-			wantStatusCode: 201,
-			requestBody:    `{"display_name": "Alice", "email": "alice@email.com"}`,
+			wantStatusCode:   201,
+			wantResponseBody: "{\"user_id\":\"1\"}\n",
 		},
 		{
 			name:           "Bad request",
+			requestBody:    `{"disp"}`,
 			wantUserStore:  UserStore{List: map[string]User{}},
 			wantStatusCode: 400,
-			requestBody:    `{"disp"}`,
 		},
 	}
 
@@ -292,6 +294,9 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 			log.Debug(string(body))
 
 			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+			if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+				assert.Equal(t, test.wantResponseBody, string(body))
+			}
 
 			userStore, err := getUserStore()
 			if err != nil {
