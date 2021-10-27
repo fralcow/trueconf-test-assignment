@@ -100,15 +100,7 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateUser(w http.ResponseWriter, r *http.Request) {
-	s, err := getUserStore()
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
-	}
-
 	request := UpdateUserRequest{}
-
 	if err := render.Bind(r, &request); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
@@ -116,38 +108,12 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 
 	id, err := parseUserId(r)
 	if err != nil {
-		log.Error(err)
 		render.Render(w, r, ErrInternal(err))
 		return
 	}
 
-	if _, ok := s.List[id]; !ok {
-		render.Render(w, r, ErrNotFound(UserNotFound))
-		return
-	}
-
-	u := s.List[id]
-
-	if request.DisplayName != nil {
-		u.DisplayName = *request.DisplayName
-	}
-	if request.Email != nil {
-		u.Email = *request.Email
-	}
-
-	s.List[id] = u
-
-	b, err := json.Marshal(&s)
-	if err != nil {
-		log.Error(err)
+	if err := dbUpdateUser(id, request.DisplayName, request.Email); err != nil {
 		render.Render(w, r, ErrInternal(err))
-		return
-	}
-	err = ioutil.WriteFile(store, b, fs.ModePerm)
-	if err != nil {
-		log.Error(err)
-		render.Render(w, r, ErrInternal(err))
-		return
 	}
 
 	render.Status(r, http.StatusNoContent)

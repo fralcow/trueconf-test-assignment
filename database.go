@@ -103,3 +103,29 @@ func dbCreateUser(displayName, email string) (id uint, err error) {
 
 	return
 }
+
+func dbUpdateUser(id uint, displayName *string, email *string) (err error) {
+	us, err := getUserStore()
+	if err != nil {
+		return
+	}
+
+	if _, ok := us.List[id]; !ok {
+		return UserNotFound
+	}
+
+	u := us.List[id]
+
+	if displayName != nil {
+		u.DisplayName = *displayName
+	}
+	if email != nil {
+		u.Email = *email
+	}
+
+	us.List[id] = u
+
+	err = overwriteUserStore(us)
+
+	return
+}
