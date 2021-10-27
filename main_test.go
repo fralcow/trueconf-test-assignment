@@ -82,7 +82,7 @@ func (suite *EndpointsTestSuite) SetupTest() {
 	}
 	defer f.Close()
 
-	userStore := UserStore{List: map[string]User{}}
+	userStore := UserStore{List: map[uint]User{}}
 	err = overwriteUserStore(userStore)
 	if err != nil {
 		log.Fatal(err)
@@ -145,7 +145,7 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 			userStore: UserStore{
 				Increment: 1,
 				List: UserList{
-					"1": User{
+					1: User{
 						CreatedAt:   timeNow,
 						DisplayName: "Alice",
 						Email:       "alice@email.com",
@@ -153,7 +153,7 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 				},
 			},
 			wantUserList: UserList{
-				"1": User{
+				1: User{
 					CreatedAt:   timeNow,
 					DisplayName: "Alice",
 					Email:       "alice@email.com",
@@ -165,12 +165,12 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 			userStore: UserStore{
 				Increment: 2,
 				List: UserList{
-					"1": User{
+					1: User{
 						CreatedAt:   timeNow,
 						DisplayName: "Alice",
 						Email:       "alice@email.com",
 					},
-					"2": User{
+					2: User{
 						CreatedAt:   timeNow,
 						DisplayName: "Bob",
 						Email:       "bob@email.com",
@@ -178,12 +178,12 @@ func (suite *EndpointsTestSuite) TestSearchUsers() {
 				},
 			},
 			wantUserList: UserList{
-				"1": User{
+				1: User{
 					CreatedAt:   timeNow,
 					DisplayName: "Alice",
 					Email:       "alice@email.com",
 				},
-				"2": User{
+				2: User{
 					CreatedAt:   timeNow,
 					DisplayName: "Bob",
 					Email:       "bob@email.com",
@@ -250,8 +250,8 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 			requestBody: `{"display_name": "Alice", "email": "alice@email.com"}`,
 			wantUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": {
+				List: map[uint]User{
+					1: {
 						CreatedAt:   time.Time{},
 						DisplayName: "Alice",
 						Email:       "alice@email.com",
@@ -259,18 +259,18 @@ func (suite *EndpointsTestSuite) TestCreateUser() {
 				},
 			},
 			wantStatusCode:   201,
-			wantResponseBody: "{\"user_id\":\"1\"}\n",
+			wantResponseBody: "{\"user_id\":1}\n",
 		},
 		{
 			name:           "Bad request",
 			requestBody:    `{"disp"}`,
-			wantUserStore:  UserStore{List: map[string]User{}},
+			wantUserStore:  UserStore{List: map[uint]User{}},
 			wantStatusCode: 400,
 		},
 	}
 
 	for _, test := range tests {
-		overwriteUserStore(UserStore{List: map[string]User{}})
+		overwriteUserStore(UserStore{List: map[uint]User{}})
 
 		suite.T().Run(test.name, func(t *testing.T) {
 
@@ -329,7 +329,7 @@ func (suite *EndpointsTestSuite) TestGetUser() {
 			name: "Existing user",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List:      map[string]User{"1": userAlice},
+				List:      map[uint]User{1: userAlice},
 			},
 			requestUserId:  1,
 			wantUser:       userAlice,
@@ -339,7 +339,7 @@ func (suite *EndpointsTestSuite) TestGetUser() {
 			name: "Non existent user",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List:      map[string]User{"1": userAlice},
+				List:      map[uint]User{1: userAlice},
 			},
 			requestUserId:  2,
 			wantUser:       User{},
@@ -403,14 +403,14 @@ func (suite *EndpointsTestSuite) TestUpdateUser() {
 			name: "Update user's name and email",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			wantUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": {
+				List: map[uint]User{
+					1: {
 						DisplayName: "Alice1",
 						Email:       "alice1@email.com",
 					},
@@ -425,14 +425,14 @@ func (suite *EndpointsTestSuite) TestUpdateUser() {
 			name: "Update user's name",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			wantUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": {
+				List: map[uint]User{
+					1: {
 						DisplayName: "Alice1",
 						Email:       "alice@email.com",
 					},
@@ -446,14 +446,14 @@ func (suite *EndpointsTestSuite) TestUpdateUser() {
 			name: "Update non existent user",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			wantUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			requestUserId:  2,
@@ -464,14 +464,14 @@ func (suite *EndpointsTestSuite) TestUpdateUser() {
 			name: "Bad request",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			wantUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			requestUserId:  1,
@@ -539,13 +539,13 @@ func (suite *EndpointsTestSuite) TestDeleteUser() {
 			name: "Delete user",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			wantUserStore: UserStore{
 				Increment: 1,
-				List:      map[string]User{},
+				List:      map[uint]User{},
 			},
 			requestUserId:  1,
 			wantStatusCode: 200,
@@ -554,14 +554,14 @@ func (suite *EndpointsTestSuite) TestDeleteUser() {
 			name: "Delete non existent user",
 			fixtureUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			wantUserStore: UserStore{
 				Increment: 1,
-				List: map[string]User{
-					"1": userAlice,
+				List: map[uint]User{
+					1: userAlice,
 				},
 			},
 			requestUserId:  2,

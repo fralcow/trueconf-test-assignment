@@ -17,9 +17,9 @@ type (
 		DisplayName string    `json:"display_name"`
 		Email       string    `json:"email"`
 	}
-	UserList  map[string]User
+	UserList  map[uint]User
 	UserStore struct {
-		Increment int      `json:"increment"`
+		Increment uint     `json:"increment"`
 		List      UserList `json:"list"`
 	}
 )
@@ -54,4 +54,18 @@ func overwriteUserStore(us UserStore) (err error) {
 	_, err = f.Write(dat)
 	log.Debugf("UserStore data: %v", string(dat))
 	return
+}
+
+func dbGetUser(id uint) (user *User, err error) {
+	s, err := getUserStore()
+	if err != nil {
+		return
+	}
+
+	for k, v := range s.List {
+		if k == id {
+			return &v, nil
+		}
+	}
+	return nil, UserNotFound
 }

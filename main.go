@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -91,7 +90,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		Email:       request.Email,
 	}
 
-	id := strconv.Itoa(s.Increment)
+	id := s.Increment
 	s.List[id] = u
 
 	b, err := json.Marshal(&s)
@@ -122,7 +121,11 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := chi.URLParam(r, "id")
+	id, err := parseUserId(r)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+	}
 
 	if _, ok := s.List[id]; !ok {
 		render.Render(w, r, ErrNotFound(UserNotFound))
@@ -154,7 +157,12 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := chi.URLParam(r, "id")
+	id, err := parseUserId(r)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	if _, ok := s.List[id]; !ok {
 		render.Render(w, r, ErrNotFound(UserNotFound))
@@ -196,7 +204,12 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := chi.URLParam(r, "id")
+	id, err := parseUserId(r)
+	if err != nil {
+		log.Error(err)
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
 
 	if _, ok := s.List[id]; !ok {
 		render.Render(w, r, ErrNotFound(UserNotFound))
