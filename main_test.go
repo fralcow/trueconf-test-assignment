@@ -548,3 +548,88 @@ func (suite *EndpointsTestSuite) TestUpdateUser() {
 		})
 	}
 }
+
+func (suite *EndpointsTestSuite) TestDeleteUser() {
+	userAlice := User{CreatedAt: time.Now(),
+		DisplayName: "Alice",
+		Email:       "alice@email.com",
+	}
+
+	tests := []struct {
+		name             string
+		fixtureUserStore UserStore
+		wantUserStore    UserStore
+		requestUserId    int
+		wantStatusCode   int
+	}{
+		{
+			name: "Delete user",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			wantUserStore: UserStore{
+				Increment: 1,
+				List:      map[string]User{},
+			},
+			requestUserId:  1,
+			wantStatusCode: 200,
+		},
+		{
+			name: "Delete non existent user",
+			fixtureUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			wantUserStore: UserStore{
+				Increment: 1,
+				List: map[string]User{
+					"1": userAlice,
+				},
+			},
+			requestUserId:  2,
+			wantStatusCode: 404,
+		},
+	}
+
+	for _, test := range tests {
+		suite.T().Run(test.name, func(t *testing.T) {
+
+			//overwrite database file
+			err := overwriteUserStore(test.fixtureUserStore)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			req, err := http.NewRequest("DELETE",
+				ts.URL+"/api/v1/users/"+fmt.Sprint(test.requestUserId)+"/",
+				nil)
+
+			resp, body := testRequest(t, ts, req)
+
+			log.Debug(req.Method, req.URL)
+			log.Debug(resp.StatusCode)
+			log.Debug(resp.Header.Get("Content-Type"))
+			log.Debug(string(body))
+
+			assert.Equal(t, test.wantStatusCode, resp.StatusCode)
+
+			gotUserStore, err := getUserStore()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			cmpOptions := cmpopts.IgnoreFields(User{}, "CreatedAt")
+			assert.True(t, cmp.Equal(test.wantUserStore, gotUserStore, cmpOptions), cmp.Diff(test.wantUserStore, gotUserStore, cmpOptions))
+		})
+	}
+}
