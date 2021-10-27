@@ -131,7 +131,8 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type UpdateUserRequest struct {
-	DisplayName string `json:"display_name"`
+	DisplayName *string `json:"display_name,omitempty"`
+	Email       *string `json:"email,omitempty"`
 }
 
 func (c *UpdateUserRequest) Bind(r *http.Request) error { return nil }
@@ -156,7 +157,14 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	u := s.List[id]
-	u.DisplayName = request.DisplayName
+
+	if request.DisplayName != nil {
+		u.DisplayName = *request.DisplayName
+	}
+	if request.Email != nil {
+		u.Email = *request.Email
+	}
+
 	s.List[id] = u
 
 	b, _ := json.Marshal(&s)
